@@ -25,6 +25,12 @@ pretty straightforward: just run the app, follow the built-in wizard, and fill
 in the Spotify, Groq, and Govee details. No `.env` file to hand-edit — a local
 web setup wizard handles all your keys.
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+You may use, copy, modify, and run this software on your own device for personal or experimental use. You may not submit unsolicited code changes to this repository without explicit approval from the project owner. Suggestions, feature requests, and bug reports are welcome through GitHub Issues or Discussions.
+
 ## Reading "now playing" — two options
 
 **Spicetify (default, recommended)** — a free extension that runs inside your
