@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}Help — Ambient Engine{% endblock %}
+{% block content %}
+
+<h1>Setup and how it works</h1>
+<p style="color: var(--text-muted);">Choose the quick setup guide or the delightfully nerdy details.</p>
+
+<div class="tabs">
+  <button id="tab-simple" class="active" onclick="showTab('simple')">Just tell me what to click</button>
+  <button id="tab-detailed" onclick="showTab('detailed')">nerdy technical stuff</button>
+</div>
+
+<!-- ============== SIMPLE MODE ============== -->
+<div id="panel-simple">
+
+<div class="panel">
+<p style="color: var(--text);">
+This app reads the current Spotify track and asks Groq to make one full-song
+lighting plan from its title, artist, and album art. The lights follow that
+palette with flowing color movement. It does not listen to the audio.
+</p>
+</div>
+
+<div class="panel">
+<h3>What you need first</h3>
+<div class="step">
+<h4>1. Spotify desktop and Spicetify (recommended)</h4>
+<p>The Spicetify bridge reads the track from the Spotify desktop app and works with a free Spotify account. Spotify must be installed and opened once before installing Spicetify. The alternative Spotify Developer API requires the app owner's Premium account under Spotify's current Development Mode rules.</p>
+</div>
+<div class="step">
+<h4>2. Python 3 on Windows</h4>
+<p>Install Python 3 and enable “Add Python to PATH.” The setup batch file installs the app's Python packages for you.</p>
+</div>
+<div class="step">
+<h4>3. A Groq API key</h4>
+<p>Get a key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>. Groq sees track metadata and a small, compressed album image, not the song audio.</p>
+</div>
+<div class="step">
+<h4>4. A Govee API key and device details</h4>
+<p>The key is used for cloud backup and to read the device's capabilities. You also need the device ID and model/SKU from Govee Home. Turn on LAN Control in the light's settings for the smoothest animation.</p>
+</div>
+</div>
+
+<div class="panel">
+<h3>Steps to get going</h3>
+<div class="step">
+<h4>Step 1 — Open the app</h4>
+<p>On Windows, double-click <code>Setup (run once).bat</code> to install dependencies. Then run <code>Start App.bat</code> whenever you use the app; keep its window open. It opens the local setup page in your browser.</p>
+</div>
+<div class="step">
+<h4>Step 2 — Install Spicetify</h4>
+<p>Follow the install instructions at <a href="https://spicetify.app" target="_blank">spicetify.app</a>. Fully close Spotify while applying Spicetify changes. The app's Spotify Web API option is an alternative, but needs a Spotify developer app and OAuth setup.</p>
+</div>
+<div class="step">
+<h4>Step 3 — Add your Groq and Govee details</h4>
+<p>Paste the Groq API key, Govee API key, device ID, and model/SKU into Setup, then save. Find the Govee key in Govee Home under Profile → Settings → Apply for API Key; the device ID and SKU are in the device details. Keep LAN Control enabled for local streaming. If you chose Spotify Web API instead of Spicetify, connect your developer app from the Spotify section.</p>
+</div>
+<div class="step">
+<h4>Step 4 — Install the bridge extension</h4>
+<p>On the Setup page, click <strong>Install extension automatically</strong>. It writes the extension with your local bridge token and applies it. If Spicetify reports outdated Spotify files, the installer attempts its restore/apply recovery and shows the command log if it still fails.</p>
+</div>
+<div class="step">
+<h4>Step 5 — Check the Spotify connection</h4>
+<p>Open Spotify desktop and play a song. The Setup page should show a green Spicetify bridge dot within a few seconds. If you use the Web API option, finish its Connect Spotify sign-in instead.</p>
+</div>
+<div class="step">
+<h4>Step 6 — Start the engine</h4>
+<p>Open Dashboard and press <strong>Start engine</strong>. Play Spotify. The page shows the current song, connection transport, and live lighting preview.</p>
+</div>
+</div>
+
+<div class="panel">
+<h3>Dashboard controls and playback states</h3>
+<div class="step">
+<h4>Brightness</h4>
+<p>Enter a maximum brightness from 1–100%. The default is 5%; this is a hard device brightness ceiling, even when the colors brighten during a song.</p>
+</div>
+<div class="step">
+<h4>Neon segment flicker</h4>
+<p>When local streaming is available, a few neighboring segments sputter brighter and dimmer like a failing neon sign. Bursts stay under three seconds and happen more often with song energy. Disable it for steady color.</p>
+</div>
+<div class="step">
+<h4>Paused playback and errors</h4>
+<p>Paused playback gets slow blue water-like color drift with flicker off. Playback or AI errors show steady amber. The sleep timer turns the lights off only when its timer expires.</p>
+</div>
+<div class="step">
+<h4>Saved song plans</h4>
+<p>Plans created for songs you play are compressed locally. Delete one to have Groq regenerate it next time. The older 84-plan archive is kept separately: its exact songs still use their archived plans, and the plans also guide new songs.</p>
+</div>
+<div class="step">
+<h4>Poll interval and sleep timer</h4>
+<p>Poll interval controls how often the app checks Spotify; it does not make extra Groq requests. Set the sleep timer to 0 to leave it off, or enter a number of minutes before the app turns the light off.</p>
+</div>
+</div>
+
+<div class="panel">
+<h3>If something's not working</h3>
+<p style="color: var(--text-muted); font-size:13.5px;">
+Check the Setup bridge dot first. If it is disconnected, open Spotify desktop,
+confirm the extension is enabled, and try the automatic installer again with
+Spotify fully closed. For a Groq 401, replace the API key. If the dashboard says
+<strong>Cloud API backup</strong>, local LAN streaming is unavailable; enable
+LAN Control and check that the computer and light share a network. Re-copy any
+key that may have extra spaces.
+</p>
+</div>
+
+</div>
+
+<!-- ============== DETAILED MODE ============== -->
+<div id="panel-detailed" style="display:none;">
+
+<div class="panel">
+<h3>Architecture overview</h3>
+<p style="color: var(--text-muted); font-size:13.5px;">
+<code>webapp.py</code> (Flask) serves the setup wizard and dashboard. By default
+it reads now-playing data from <code>spicetify_bridge.py</code> (pushed from
+the Spotify desktop client); it can optionally use Spotify's OAuth Web API
+instead if you pick that in Setup. <code>engine.py</code> runs the poll
+loop in a background daemon thread, started/stopped via <code>/engine/start</code>
+and <code>/engine/stop</code>. State (current track, last lighting decision,
+errors, sleep-timer countdown) is exposed via <code>/api/status</code> and
+polled client-side every 2s. All credentials persist in <code>config.json</code>
+(gitignored) rather than a <code>.env</code> file.
+</p>
+</div>
+
+<div class="panel">
+<h3>1. Spicetify bridge (default track source)</h3>
+<div class="step">
+<h4>Why not the Spotify Web API by default</h4>
+<p>The Spicetify path reads the desktop player's state locally, so it avoids OAuth and Spotify Web API access requirements. Choose the Spotify API option only if you have already configured a developer app and its OAuth credentials.</p>
+</div>
+<div class="step">
+<h4>How it works</h4>
+<p><code>spicetify-extension/ambientLightingBridge.js</code> runs inside the Spotify desktop client once loaded via Spicetify. It listens to <code>Spicetify.Player</code>'s <code>songchange</code>, <code>onprogress</code>, and <code>onplaypause</code> events, reads metadata and playback progress, and POSTs to <code>http://127.0.0.1:5000/api/spicetify/now-playing</code> at most once per second, plus immediately on song change and play/pause.</p>
+</div>
+<div class="step">
+<h4>Album art URL conversion</h4>
+<p>Spicetify's <code>metadata.image_xlarge_url</code> field is an internal URI (<code>spotify:image:&lt;hash&gt;</code>), not a fetchable URL. The extension converts it to <code>https://i.scdn.co/image/&lt;hash&gt;</code> before sending, since that's what <code>ai_lighting_engine.py</code> needs to download the artwork bytes.</p>
+</div>
+<div class="step">
+<h4>Server side</h4>
+<p><code>spicetify_bridge.py</code> holds the latest pushed state in memory (thread-safe) and exposes <code>get_now_playing()</code> with the exact same return shape as <code>SpotifyClient.get_now_playing()</code>, so <code>engine.py</code> swaps between the two sources based on <code>cfg["track_source"]</code> with no other code changes. State is considered stale (and playback treated as "nothing playing") if no push has arrived in <code>STALE_AFTER_SECONDS</code> (15s) — this is what powers the connected/disconnected dot on the Setup page.</p>
+</div>
+<div class="step">
+<h4>Bridge token</h4>
+<p>A random 32-char hex token (<code>bridge_token</code> in <code>config.json</code>, generated on first run via <code>secrets.token_hex(16)</code>) is required on every <code>/api/spicetify/now-playing</code> POST via the <code>X-Bridge-Token</code> header. This isn't about internet security (the endpoint only binds to 127.0.0.1) — it's so the Setup page can tell "nothing is reaching us" apart from "something's reaching us with a stale/wrong token" (the <code>unauthorized_recently</code> flag), which is a much faster thing to debug than a plain silent timeout.</p>
+</div>
+<div class="step">
+<h4>Update cadence</h4>
+<p>The extension pushes progress at most once per second and sends immediate updates for song changes and play/pause. The engine checks the local bridge every 0.3 seconds. The Spotify Web API mode uses the dashboard poll interval; its queue endpoint is checked about every 20 seconds.</p>
+</div>
+<div class="step">
+<h4>One-click installer</h4>
+<p><code>/api/spicetify/install</code> finds the Spicetify config path, writes the extension with your bridge token, enables it, and applies the configuration. It captures the command output for troubleshooting and attempts <code>spicetify restore backup apply</code> if Spotify's preprocessed files are outdated. Fully close Spotify before applying changes. Manual installs need the token from Setup in the extension's <code>BRIDGE_TOKEN</code> constant.</p>
+</div>
+</div>
+
+<div class="panel">
+<h3>2. Spotify Web API (alternate track source)</h3>
+<p style="color: var(--text-muted); font-size:13.5px;">Spotify currently requires the app owner to have Premium for Development Mode apps. See <a href="https://developer.spotify.com/documentation/web-api/concepts/quota-modes" target="_blank">Spotify's quota mode requirements</a>.</p>
+<div class="step">
+<h4>Create the app</h4>
+<p>developer.spotify.com/dashboard → Create app. Add <code>http://127.0.0.1:5000/spotify/callback</code>
+as a Redirect URI — must match exactly, including the port. Copy the Client ID and Client Secret into the setup form. Development Mode currently requires Premium on the app owner's account, even though the Spicetify bridge does not.</p>
+</div>
+<div class="step">
+<h4>OAuth scopes used</h4>
+<p><code>user-read-currently-playing</code> and <code>user-read-playback-state</code>.</p>
+</div>
+<div class="step">
+<h4>Token lifecycle</h4>
+<p>Access tokens expire after ~3600s; <code>SpotifyClient</code> refreshes 60s early automatically. Spotify occasionally rotates the refresh token itself on refresh — the client captures and swaps it in-memory.</p>
+</div>
+</div>
+
+<div class="panel">
+<h3>3. AI lighting with Groq</h3>
+<div class="step">
+<h4>Groq</h4>
+<p>Get an API key from console.groq.com/keys. For a new track, the app sends title, artist, and the cover resized to at most 128×128 pixels and recompressed as a quality-45 JPEG. The image is attached once on the first request; retries omit it. Groq returns the original full-song plan: six timed color keyframes plus palette anchors. Groq does not receive or hear the audio.</p>
+</div>
+<div class="step">
+<h4>Plan cache, archived references, and preloading</h4>
+<p>New plans are stored in compressed <code>song_lighting_cache.json.gz</code>, keyed by Spotify track ID, then sampled locally throughout replays. The separate <code>track_plans.json.gz</code> archive holds 84 old-format plans: a matching Spotify ID reuses its exact archived plan, while new songs can receive up to three examples chosen by title/artist word overlap with the examples' descriptions. That matching is a heuristic; it is prompt guidance, not model fine-tuning. Spotify's next queued track is preloaded when available. Groq requests are serialized and locally limited to two per rolling minute.</p>
+</div>
+<div class="step">
+<h4>Paused playback and errors</h4>
+<p>Pause uses a low-energy blue palette with no transient effects, so neon flicker stays off. LAN control renders its water drift at up to 30 FPS; cloud fallback makes a gentle whole-light color change about every 2.5 seconds. Playback or AI errors still show steady amber. A Groq 401 indicates an invalid, expired, or revoked key.</p>
+</div>
+<div class="step">
+<h4>Pausing playback during the first decision</h4>
+<p>The Spicetify bridge includes the next queued track when Spotify exposes it, letting the engine generate and cache that plan while the current song plays. If a new track has no ready plan yet, the lights hold their previous state while Groq works; the engine no longer cycles a white loading pattern across the strip.</p>
+</div>
+</div>
+
+<div class="panel">
+<h3>4. Govee API setup</h3>
+<div class="step">
+<h4>Local control first, cloud backup</h4>
+<p>The app discovers your light on the local network and sends commands over UDP. Enable <strong>LAN Control</strong> in Govee Home and put the computer and light on the same network. If discovery fails or a LAN send raises an error, the app falls back to Govee Cloud API. UDP has no acknowledgement, so a command silently ignored by the device cannot trigger fallback.</p>
+</div>
+<div class="step">
+<h4>Keep a Govee API key for backup</h4>
+<p>Govee Home app → Profile → Settings → Apply for API Key (usually near-instant via email).</p>
+</div>
+<div class="step">
+<h4>Find your device + SKU</h4>
+<p>The exact <code>device</code> (MAC-style ID) and <code>sku</code> (e.g. <code>H619B</code>) are needed for setup. At startup the app uses the API key for a read-only capability lookup; normal control commands go over LAN whenever discovery succeeds.</p>
+</div>
+<div class="step">
+<h4>Rate limits</h4>
+<p>Cloud API control is only the fallback and is throttled to a 0.5-second minimum between calls. Local Razer/DreamView frames are paced at up to 30 FPS using a reused UDP socket; this is local streaming, not a series of cloud calls.</p>
+</div>
+<div class="step">
+<h4>Segmented (RGBIC) control caveat</h4>
+<p>The startup capability lookup checks whether this exact Govee device advertises <code>segmentedColorRgb</code> and reads its zone count. Compatible devices receive per-zone Razer/DreamView frames over LAN. The flowing palette renderer also carries a white wave across the strip on song changes and large palette shifts. Cloud-only control updates much less often to respect rate limits; its song-change fallback is a brief white cue, not a streamed wave. Devices without independent zones use whole-light color.</p>
+</div>
+</div>
+
+<div class="panel">
+<h3>5. Animation, flicker, and color safety</h3>
+<div class="step">
+<h4>Water-like motion</h4>
+<p><code>effects.py</code> renders the palette locally with layered, non-synchronized waves and Oklab color math. Track energy changes the wave speed and spread. LAN can stream up to 30 frames per second; the cloud API cannot stream fluid animation.</p>
+</div>
+<div class="step">
+<h4>Neon flicker</h4>
+<p>The optional effect chooses a short contiguous group of one to three segments, then gives each a deterministic but irregular sequence of bright and dim holds. Bursts are 0.8–2.4 seconds, capped below three seconds, and recur sooner at higher energy. Pause sends no flicker events.</p>
+</div>
+<div class="step">
+<h4>Brightness and near-black protection</h4>
+<p>The dashboard brightness value is a hard device-level maximum, default 5%. The renderer keeps its lightness above the normal ambient floor and raises near-black animation colors proportionally so their strongest RGB channel is at least 128, including after frame smoothing. This protects against animation frames that look off; the sleep timer still intentionally powers down the light when it expires.</p>
+</div>
+</div>
+
+<div class="panel">
+<h3>Running it manually (without the web UI)</h3>
+<p style="color: var(--text-muted); font-size:13.5px;">
+If you'd rather script it directly: instantiate <code>SpotifyClient</code>,
+<code>GoveeClient</code>, and <code>GroqLightingEngine</code> yourself
+(see <code>engine.py</code> for the exact call pattern) and drive your own
+loop — no Flask required. Useful for running on a headless device like a
+Raspberry Pi as a systemd service instead of a browser-controlled app.
+</p>
+</div>
+
+<div class="panel">
+<h3>Sleep timer implementation detail</h3>
+<p style="color: var(--text-muted); font-size:13.5px;">
+During the final 15 minutes, the sampled song decision is overridden with a
+deep-blue color and a longer update interval; no extra Groq request is made.
+When the timer reaches zero, the engine calls <code>govee.set_power(False)</code>
+and exits. A zero-minute timer means the timer is off.
+</p>
+</div>
+
+<div class="panel">
+<h3>Credits and references</h3>
+<p style="color: var(--text-muted); font-size:13.5px;">
+The layered, ocean-like movement is an original Oklab adaptation inspired by
+<a href="https://github.com/FastLED/FastLED/blob/master/examples/Pacifica/Pacifica.ino" target="_blank">Pacifica by Mark Kriegsman and Mary Corey March</a>.
+LAN protocol and streaming behavior were cross-checked against
+<a href="https://github.com/LedFx/LedFx" target="_blank">LedFx</a> and the
+MIT-licensed <a href="https://github.com/bochelork/govee_razer_led" target="_blank">Govee Razer LED Controller</a>.
+The app uses its own renderer; source code from those projects was not copied.
+</p>
+</div>
+
+</div>
+
+<script>
+function showTab(which) {
+  document.getElementById('panel-simple').style.display = which === 'simple' ? 'block' : 'none';
+  document.getElementById('panel-detailed').style.display = which === 'detailed' ? 'block' : 'none';
+  document.getElementById('tab-simple').classList.toggle('active', which === 'simple');
+  document.getElementById('tab-detailed').classList.toggle('active', which === 'detailed');
+}
+</script>
+
+{% endblock %}

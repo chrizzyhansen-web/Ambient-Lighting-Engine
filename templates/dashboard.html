@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Ambient Engine{% endblock %}
+{% block content %}
+
+<h1>Ambient Lighting Engine</h1>
+
+<div class="panel">
+  <h2>Engine controls</h2>
+  <div class="row" style="margin-bottom:8px;">
+    <span class="status-dot" id="engine-dot"></span>
+    <span id="engine-state">Stopped</span>
+  </div>
+  <div id="govee-connection" style="color:var(--text-muted); font-size:12px; margin-bottom:14px;">Light control: not connected</div>
+  <form method="POST" action="/engine/start" id="start-form">
+    <div class="row" style="margin-bottom:14px;">
+      <button type="submit" id="start-btn">Start engine</button>
+      <button type="submit" formaction="/engine/stop" class="stop" id="stop-btn" style="display:none;">Stop engine</button>
+      <a href="/setup" class="btn secondary">Edit keys</a>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="poll-interval">Poll interval (seconds)</label>
+        <div class="hint">How often the app checks Spotify for playback and song changes. Lower values react sooner and make more requests.</div>
+        <input id="poll-interval" type="number" step="0.5" min="1" name="poll_interval_seconds" value="{{ cfg.poll_interval_seconds }}">
+      </div>
+      <div class="field">
+        <label for="sleep-timer">Sleep timer (minutes, 0 = off)</label>
+        <div class="hint">Stops the lighting engine after this many minutes. Enter 0 to keep it running until you stop it.</div>
+        <input id="sleep-timer" type="number" step="1" min="0" name="sleep_timer_minutes" value="{{ cfg.sleep_timer_minutes }}">
+      </div>
+    </div>
+  </form>
+
+  <div id="timer-note" style="color: var(--light); font-size:13px; margin-top:14px; display:none;"></div>
+  <div id="error-note" style="color: var(--err); font-size:13px; margin-top:14px; display:none;"></div>
+</div>
+
+<h1>Live control</h1>
+<div class="panel" style="display:flex; gap:24px; align-items:center;">
+  <div id="orb" style="width:84px; height:84px; border-radius:50%; background:#333; border:1px solid var(--panel-line); flex-shrink:0; transition: background 1.2s ease;"></div>
+  <div>
+    <div id="track-title" style="font-family:'Fraunces',serif; font-size:19px;">Nothing playing</div>
+    <div id="track-artist" style="color:var(--text-muted); font-size:13.5px;"></div>
+    <div id="track-progress" style="color:var(--text-muted); font-size:13px; margin-top:4px;"></div>
+    <div id="decision-reasoning" style="color:var(--text-muted); font-size:13.5px; margin-top:8px;"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Lighting controls</h2>
+  <div class="field">
+    <label for="max-brightness">Maximum brightness (%)</label>
+    <div class="hint">Sets the strip’s brightness ceiling. Song energy still shapes the animation below this limit; 5% is the default.</div>
+    <input id="max-brightness" type="number" min="1" max="100" step="1" value="{{ cfg.max_brightness_pct|default(5) }}">
+  </div>
+  <div class="field">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <input id="flicker-enabled" type="checkbox" style="width:auto;" {{ 'checked' if cfg.flicker_enabled|default(true) else '' }}>
+      <label for="flicker-enabled" style="margin:0;">Neon segment flicker</label>
+    </div>
+    <div class="hint">With local streaming, a few nearby segments sputter brighter and dimmer like a failing neon sign. Bursts last under three seconds and happen more often in energetic songs. Turn this off for steady color.</div>
+  </div>
+  <button type="button" id="save-lighting-settings">Save lighting controls</button>
+  <span id="settings-feedback" style="color:var(--text-muted);font-size:12px;margin-left:10px;"></span>
+</div>
+
+<div class="panel">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">
+    <h2>Saved song plans</h2>
+    <span id="saved-song-count" style="color:var(--text-muted);font-size:12px;"></span>
+  </div>
+  <div id="saved-songs" style="max-height:420px;overflow:auto;"></div>
+  <div class="hint" style="margin-top:12px;">Plans are kept in a compressed local cache. Removing one makes the app generate it again the next time it plays.</div>
+</div>
+
+<script>
+async function poll() {
+  try {
+    const res = await fetch('/api/status');
+    const s = await res.json();
+
+    document.getElementById('engine-dot').className = 'status-dot' + (s.running ? ' ok' : '');
+    document.getElementById('engine-state').textContent = s.running ? 'Running' : 'Stopped';
+    document.getElementById('govee-connection').textContent =
+      'Light control: ' + (s.govee_transport || 'not connected') +
+      (s.govee_lan_available ? ' (LAN reachable)' : '') +
+      (s.govee_independent_control ? ' · ' + s.govee_segment_count + ' independent zones' : ' · whole-light color');
+    document.getElementById('start-btn').style.display = s.running ? 'none' : 'inline-block';
+    document.getElementById('stop-btn').style.display = s.running ? 'inline-block' : 'none';
+
+    const track = s.last_track;
+    if (track) {
+      document.getElementById('track-title').textContent = track.title || 'Nothing playing';
+      document.getElementById('track-artist').textContent = track.artist || '';
+      document.getElementById('track-progress').textContent = track.progress_pct != null ? track.progress_pct.toFixed(0) + '% through' : '';
+    }
+
+    const orb = document.getElementById('orb');
+    const d = s.last_decision;
+    if (d && d.rgb != null) {
+      const hex = '#' + (d.rgb >>> 0).toString(16).padStart(6, '0');
+      orb.style.background = hex;
+      document.getElementById('decision-reasoning').textContent = (d.reasoning || '') +
+        (d.brightness_pct != null ? '  ·  brightness ' + d.brightness_pct + '%' : '');
+    } else if (d && d.note) {
+      document.getElementById('decision-reasoning').textContent = d.note;
+    }
+
+    const timerNote = document.getElementById('timer-note');
+    if (s.sleep_timer_minutes_remaining != null) {
+      timerNote.style.display = 'block';
+      timerNote.textContent = 'Sleep timer: ' + s.sleep_timer_minutes_remaining + ' min remaining';
+    } else {
+      timerNote.style.display = 'none';
+    }
+
+    const errNote = document.getElementById('error-note');
+    if (s.last_error) {
+      errNote.style.display = 'block';
+      errNote.textContent = s.last_error.split('\n')[0];
+    } else {
+      errNote.style.display = 'none';
+    }
+  } catch (e) { /* network hiccup, ignore */ }
+}
+poll();
+setInterval(poll, 2000);
+
+const brightness = document.getElementById('max-brightness');
+document.getElementById('save-lighting-settings').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  const feedback = document.getElementById('settings-feedback');
+  button.disabled = true;
+  feedback.textContent = 'Saving…';
+  try {
+    const brightnessValue = Number(brightness.value);
+    if (!Number.isInteger(brightnessValue) || brightnessValue < 1 || brightnessValue > 100) {
+      throw new Error('Enter a whole-number brightness from 1 to 100.');
+    }
+    const response = await fetch('/api/settings', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        max_brightness_pct: brightnessValue,
+        flicker_enabled: document.getElementById('flicker-enabled').checked
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not save settings.');
+    feedback.textContent = 'Saved';
+  } catch (error) {
+    feedback.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+async function loadSavedSongs() {
+  const list = document.getElementById('saved-songs');
+  try {
+    const response = await fetch('/api/saved-songs');
+    const result = await response.json();
+    list.replaceChildren();
+    document.getElementById('saved-song-count').textContent = result.songs.length + ' plans';
+    for (const song of result.songs) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--panel-line);';
+      const label = document.createElement('div');
+      label.style.cssText = 'min-width:0;overflow-wrap:anywhere;';
+      const title = document.createElement('div');
+      title.textContent = song.title;
+      title.style.cssText = 'font-size:14px;';
+      const artist = document.createElement('div');
+      artist.textContent = song.artist;
+      artist.style.cssText = 'color:var(--text-muted);font-size:12px;';
+      const id = document.createElement('div');
+      id.textContent = song.track_id;
+      id.style.cssText = 'color:var(--text-muted);font-size:11px;';
+      label.append(title, artist, id);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'secondary';
+      remove.textContent = 'Delete';
+      remove.addEventListener('click', async () => {
+        if (!confirm('Delete this saved lighting plan?')) return;
+        const deleted = await fetch('/api/saved-songs/delete', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({track_id: song.track_id})
+        });
+        if (deleted.ok) loadSavedSongs();
+      });
+      row.append(label, remove);
+      list.append(row);
+    }
+  } catch (_) {
+    list.textContent = 'Could not load saved song plans.';
+  }
+}
+loadSavedSongs();
+</script>
+
+{% endblock %}

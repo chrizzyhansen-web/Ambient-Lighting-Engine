@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Setup — Ambient Engine{% endblock %}
+{% block content %}
+
+<h1>Connect your accounts</h1>
+<p style="color: var(--text-muted);">
+  Paste in your keys below. Nothing leaves your machine — this is saved to
+  <code>config.json</code> locally, which is already gitignored.
+</p>
+
+{% if spotify_error %}
+<div class="panel" style="border-color: var(--err);">
+  <strong style="color: var(--err);">Spotify connection failed:</strong> {{ spotify_error }}
+</div>
+{% endif %}
+
+<div class="panel">
+  <div class="service-group">
+    <h3>How should we read what's playing?</h3>
+    <div class="row" style="gap: 20px; margin-top: 8px;">
+      <label style="display:flex; align-items:center; gap:8px; font-size:13.5px; color: var(--text);">
+        <input type="radio" name="track_source" value="spicetify" form="setup-form"
+               id="track_source_spicetify" {{ 'checked' if cfg.track_source != 'spotify_api' else '' }}>
+        Spicetify (free account, recommended)
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; font-size:13.5px; color: var(--text);">
+        <input type="radio" name="track_source" value="spotify_api" form="setup-form"
+               id="track_source_spotify_api" {{ 'checked' if cfg.track_source == 'spotify_api' else '' }}>
+        Spotify Developer API (needs Premium)
+      </label>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="spicetify-panel">
+  <div class="service-group">
+    <h3>
+      <span class="status-dot" id="spicetify-status-dot"></span>
+      Spicetify bridge
+    </h3>
+    <p class="hint" id="spicetify-status-text">Checking connection…</p>
+
+    <div class="field">
+      <label>Your bridge token (keep this local)</label>
+      <input type="text" readonly value="{{ cfg.bridge_token }}" id="bridge-token-field"
+             onclick="this.select()" style="font-family: 'IBM Plex Mono', monospace;">
+      <p class="hint">
+        This proves updates are really coming from your Spicetify extension, not some
+        other local program. The installer button below fills it in automatically —
+        you only need to copy it if you're installing the extension file by hand.
+      </p>
+    </div>
+
+    <div class="row" style="margin-top: 10px;">
+      <button type="button" class="btn" id="install-extension-btn" onclick="installExtension()">
+        Install extension automatically
+      </button>
+    </div>
+    <p class="hint" id="install-result-text"></p>
+
+    <p class="hint" style="margin-top: 10px;">
+      Requires <a href="https://spicetify.app" target="_blank">Spicetify</a> to already be
+      installed. See the <a href="/help">Help page</a> for manual install steps instead.
+    </p>
+  </div>
+</div>
+
+<div class="panel" id="spotify-api-panel" style="display:none;">
+  <div class="service-group">
+    <h3>
+      <span class="status-dot {{ 'ok' if cfg.spotify_refresh_token else '' }}"></span>
+      Spotify Developer API
+    </h3>
+    <div class="field">
+      <label>Client ID</label>
+      <input type="text" name="spotify_client_id_display" form="setup-form" id="spotify_client_id_field">
+    </div>
+    <div class="field">
+      <label>Client Secret</label>
+      <input type="password" name="spotify_client_secret_display" form="setup-form" id="spotify_client_secret_field">
+    </div>
+    <p class="hint">
+      Requires a Spotify Premium account on the app owner. From
+      <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com/dashboard</a>.
+      Add redirect URI <code>http://127.0.0.1:5000/spotify/callback</code> to your app's settings first.
+    </p>
+    <div class="row" style="margin-top: 14px;">
+      <button type="submit" form="setup-form" class="secondary">Save keys</button>
+      <a href="/spotify/connect" class="btn">
+        {{ 'Reconnect Spotify' if cfg.spotify_refresh_token else 'Connect Spotify' }}
+      </a>
+    </div>
+    {% if cfg.spotify_refresh_token %}
+      <p class="hint" style="color: var(--ok);">Connected — refresh token stored.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  <form id="setup-form" method="POST" action="/setup">
+    <input type="hidden" name="spotify_client_id" id="spotify_client_id_hidden">
+    <input type="hidden" name="spotify_client_secret" id="spotify_client_secret_hidden">
+
+    <div class="service-group">
+      <h3>
+        <span class="status-dot {{ 'ok' if cfg.groq_api_key else '' }}"></span>
+        Groq lighting AI
+      </h3>
+      <div class="field">
+        <label>API Key</label>
+        <input type="password" name="groq_api_key" value="{{ cfg.groq_api_key }}">
+        <p class="hint">Groq analyzes the song and album art, then chooses the lighting. Get a key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>.</p>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="service-group">
+      <h3>
+        <span class="status-dot {{ 'ok' if cfg.govee_api_key else '' }}"></span>
+        Govee
+      </h3>
+      <div class="field">
+        <label>API Key</label>
+        <input type="password" name="govee_api_key" value="{{ cfg.govee_api_key }}">
+        <p class="hint">Govee Home app &rarr; Profile &rarr; Settings &rarr; Apply for API Key. The app controls lights over your local network first and keeps the API key for backup control.</p>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Device ID (MAC address)</label>
+          <input type="text" name="govee_device_id" value="{{ cfg.govee_device_id }}" placeholder="AA:BB:CC:DD:EE:FF:00:11">
+        </div>
+        <div class="field">
+          <label>Device Model / SKU</label>
+          <input type="text" name="govee_device_model" value="{{ cfg.govee_device_model }}" placeholder="H619B">
+        </div>
+      </div>
+      <p class="hint">Turn on <strong>LAN Control</strong> in the Govee Home app under this device's settings. Your computer and lights need to be on the same local network.</p>
+    </div>
+
+    <button type="submit">Save all keys</button>
+  </form>
+</div>
+
+<script>
+  // Keep Spotify fields in the same form without an awkward nested-form layout.
+  const cid = document.getElementById('spotify_client_id_field');
+  const csec = document.getElementById('spotify_client_secret_field');
+  cid.value = {{ cfg.spotify_client_id|tojson }};
+  csec.value = {{ cfg.spotify_client_secret|tojson }};
+  document.getElementById('setup-form').addEventListener('submit', () => {
+    document.getElementById('spotify_client_id_hidden').value = cid.value;
+    document.getElementById('spotify_client_secret_hidden').value = csec.value;
+  });
+
+  function toggleSourcePanels() {
+    const useSpicetify = document.getElementById('track_source_spicetify').checked;
+    document.getElementById('spicetify-panel').style.display = useSpicetify ? 'block' : 'none';
+    document.getElementById('spotify-api-panel').style.display = useSpicetify ? 'none' : 'block';
+  }
+  document.getElementById('track_source_spicetify').addEventListener('change', toggleSourcePanels);
+  document.getElementById('track_source_spotify_api').addEventListener('change', toggleSourcePanels);
+  toggleSourcePanels();
+
+
+  function refreshSpicetifyStatus() {
+    fetch('/api/spicetify/status').then(r => r.json()).then(d => {
+      const dot = document.getElementById('spicetify-status-dot');
+      const text = document.getElementById('spicetify-status-text');
+      if (d.connected) {
+        dot.classList.add('ok');
+        text.textContent = 'Connected — receiving data from Spicetify.';
+        text.style.color = 'var(--ok)';
+      } else if (d.unauthorized_recently) {
+        dot.classList.remove('ok');
+        text.textContent = "Something is reaching us, but the token doesn't match. " +
+          "Re-run the install button below, or check the token in a manually-installed copy.";
+        text.style.color = 'var(--err)';
+      } else {
+        dot.classList.remove('ok');
+        text.textContent = 'Not connected yet — open Spotify desktop with the extension installed and playing a song.';
+        text.style.color = 'var(--text-muted)';
+      }
+    }).catch(() => {});
+  }
+  refreshSpicetifyStatus();
+  setInterval(refreshSpicetifyStatus, 3000);
+
+  function installExtension() {
+    const btn = document.getElementById('install-extension-btn');
+    const result = document.getElementById('install-result-text');
+    btn.disabled = true;
+    btn.textContent = 'Installing…';
+    result.style.color = 'var(--text-muted)';
+    result.textContent = 'Running spicetify config-dir, writing the extension, and applying…';
+
+    fetch('/api/spicetify/install', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        btn.disabled = false;
+        btn.textContent = 'Install extension automatically';
+        if (d.ok) {
+          result.style.color = 'var(--ok)';
+          result.textContent = d.message;
+        } else {
+          result.style.color = 'var(--err)';
+          let msg = d.error;
+          if (d.log && d.log.length) {
+            msg += '\n\n' + d.log.join('\n');
+          }
+          result.style.whiteSpace = 'pre-wrap';
+          result.style.fontFamily = "'IBM Plex Mono', monospace";
+          result.style.fontSize = '12px';
+          result.textContent = msg;
+        }
+      })
+      .catch(() => {
+        btn.disabled = false;
+        btn.textContent = 'Install extension automatically';
+        result.style.color = 'var(--err)';
+        result.textContent = 'Request failed — is the app still running?';
+      });
+  }
+</script>
+
+{% set ai_ready = cfg.groq_api_key %}
+{% if ai_ready and cfg.govee_api_key and cfg.govee_device_id and cfg.govee_device_model %}
+<p style="margin-top: 24px;"><a href="/" class="btn">Everything's connected &rarr; Go to dashboard</a></p>
+{% endif %}
+
+{% endblock %}
