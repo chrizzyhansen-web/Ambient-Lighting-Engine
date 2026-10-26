@@ -15,7 +15,10 @@ pushes the resulting color/brightness back to your lights — building up during
 peaking during choruses, fading during outros, and winding down to warm
 amber/blue tones if you set a sleep timer.
 
-No `.env` file to hand-edit — a local web setup wizard handles all your keys.
+If you already have Spicetify installed and your API keys ready, setup is
+pretty straightforward: just run the app, follow the built-in wizard, and fill
+in the Spotify, Groq, and Govee details. No `.env` file to hand-edit — a local
+web setup wizard handles all your keys.
 
 ## Reading "now playing" — two options
 
