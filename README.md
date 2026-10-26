@@ -6,6 +6,11 @@
 > neon flicker can be disabled in the dashboard, but people with photosensitive
 > epilepsy or sensitivity to flashing lights should avoid it or keep flicker off.
 
+quick setup summary for non-nerds, all you really need to do is download spicetify,
+(https://spicetify.app/#install) get a groq api, (https://console.groq.com/keys) apply
+for a govee api on your phone (Profile > Settings > Apply for Api) then let the auto setup
+thing handle the rest of it.
+
 Turns a Govee RGBIC LED strip into a Spotify-synced visualizer. A background
 loop polls your currently playing track every few seconds. On the first play
 of a song, it sends the album art and track metadata to Groq once and saves a
